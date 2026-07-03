@@ -1,35 +1,47 @@
-# Transparent Markets and Tacit Collusion
+# Transparent Two-Seller Pricing Experiment
 
-This project simulates a repeated pricing market with reinforcement-learning sellers.
+This project compares two fully transparent repeated Q-learning pricing markets. Both experiments use:
 
-The experiment compares two information structures with the same initial state:
+- two sellers;
+- the same prices: `2.0` and `2.6`;
+- the same initial actions: `[0, 1]`;
+- the same public observation structure.
 
-- **Private observation**: each seller observes only its own previous price, demand, and reward.
-- **Transparent market**: each seller observes every seller's previous price, demand, and reward.
+Each seller observes both sellers' previous actions, demands, and rewards. The experiments differ only in demand allocation and `gamma`.
 
-The point is to show that market transparency can make previous actions a public signal. Independent RL agents can then learn high-price coordination and punishment-like responses without explicit communication.
-
-## Model
-
-Each round, four market makers simultaneously choose one of two prices:
+For one seller, the first letter is its own action and the second is the rival's action:
 
 ```text
-low price  = 2.0  # one-shot Nash / competitive price
-high price = 2.6  # symmetric joint-profit price
+LL: own low, rival low
+HL: own high, rival low
+LH: own low, rival high
+HH: own high, rival high
 ```
 
-All experiments start from the same state: two market makers charged the low price and two charged the high price in the previous round. The initial average price is therefore:
+Both experiments satisfy:
 
 ```text
-(2.0 + 2.0 + 2.6 + 2.6) / 4 = 2.3
+LH > HH > LL > HL
 ```
 
-Demand is implemented through a reduced-form Bertrand payoff table:
+## High-Convergence Market
 
 ```text
-all low:   each market maker earns 410
-all high:  each market maker earns 500
-mixed:     low-price market makers earn more, high-price market makers lose demand
+gamma = 0.99
+LL = 410
+HL = 200
+LH = 560
+HH = 500
+```
+
+## Low-Convergence Market
+
+```text
+gamma = 0.30
+LL = 410
+HL = 50
+LH = 700
+HH = 430
 ```
 
 Profit is:
@@ -38,41 +50,39 @@ Profit is:
 r_i = (p_i - c) q_i
 ```
 
-This payoff structure has the repeated-pricing tension we want:
+Q-learning update:
 
-- If the other seller prices high, undercutting gives a larger one-round reward.
-- If the other seller prices low, low price is also the best one-round response.
-- Therefore the one-shot Nash outcome is low-low.
-- If both sellers can condition on public history, high-high gives higher long-run profit.
+```text
+y_i = r_i + gamma * max_{a'} Q_i(s_i', a')
+delta_i = y_i - Q_i(s_i, a_i)
+Q_i(s_i, a_i) <- Q_i(s_i, a_i) + alpha_i * delta_i
+```
 
-With four market makers, the same logic becomes:
-
-- all-low is the one-shot Nash outcome;
-- all-high maximizes joint profit;
-- a single low-price deviation is profitable in the current round;
-- transparent public history lets agents learn a punishment-and-recovery pattern.
-
-## Run
+Run:
 
 ```bash
-python3 -m pip install -r requirements.txt
 python3 run_experiment.py
 ```
 
-Outputs:
+Current results:
 
-- `results/private.npz`
-- `results/transparent.npz`
-- `figures/training_price_curve.png`
-- `figures/final_price_comparison.png`
-- `figures/final_profit_comparison.png`
-- `figures/final_price_distribution.png`
+```text
+Original initialization, gamma=0.99:
+final price=2.594, final profit=498.49, all-high=0.986, all-low=0.007
 
-## Interpretation
+Original initialization, gamma=0.01 (all other parameters unchanged):
+final price=2.001, final profit=409.87, all-high=0.000, all-low=0.996
+```
 
-If the transparent-market average price is above the one-shot Nash benchmark and closer to the joint-profit price, the simulation exhibits tacit collusion. The agents are not told to collude; they only optimize discounted reward under different observation structures.
+Both cases use the exact original state-dependent Q prior (`1000` on high after
+unanimous play, `1000` on low after mismatched play).  With `gamma=0.01`, that
+prior delays but does not prevent convergence to low prices.  See
+`GAMMA_CONTROL_EXPERIMENT_CN.md` for the controlled comparison.
 
-Both groups use the same initial state, discount factor, learning rates, and exploration schedule. The only structural difference is the observation:
+For the generalized many-seller/many-price Logit-demand experiments, run:
 
-- private agents get a repeat-last-action prior because they know their own previous action;
-- transparent agents can use the public previous joint action, so their Q-table can represent: maintain all-high, punish mixed deviations, and recover from all-low.
+```bash
+python3 run_generalized_experiment.py
+```
+
+Parameters, payoff equations, and validated results are documented in `GENERALIZED_EXPERIMENT_CN.md`.
