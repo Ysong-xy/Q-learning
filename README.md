@@ -1,88 +1,130 @@
-# Transparent Two-Seller Pricing Experiment
+# Multi-Agent Q-Learning Pricing Experiments
 
-This project compares two fully transparent repeated Q-learning pricing markets. Both experiments use:
+本项目使用多智能体 Q-learning 模拟重复定价市场，比较卖家数量、价格动作数和折扣因子 $\gamma$ 对价格、利润与策略稳定性的影响。
 
-- two sellers;
-- the same prices: `2.0` and `2.6`;
-- the same initial actions: `[0, 1]`;
-- the same public observation structure.
+当前主实验包含三种市场：
 
-Each seller observes both sellers' previous actions, demands, and rewards. The experiments differ only in demand allocation and `gamma`.
+| 市场 | 卖家数 | 价格动作 |
+|---|---:|---|
+| 多人两价 | 4 | $\{2.0,2.6\}$ |
+| 两人多价 | 2 | $\{2.0,2.1,\ldots,2.6\}$ |
+| 多人多价 | 4 | $\{2.0,2.1,\ldots,2.6\}$ |
 
-For one seller, the first letter is its own action and the second is the rival's action:
+三种市场使用相同的价格范围 $[2.0,2.6]$，避免将价格范围差异误当成市场结构差异。
 
-```text
-LL: own low, rival low
-HL: own high, rival low
-LH: own low, rival high
-HH: own high, rival high
+## 需求与利润
+
+通用多人/多价实验使用包含外部选项的 Logit 需求。卖家 $i$ 选择价格 $p_i$ 后，
+
+$$
+u_i=\frac{v-\beta p_i}{\mu},
+\qquad
+s_i=\frac{e^{u_i}}{1+\sum_{j=1}^{N}e^{u_j}},
+$$
+
+$$
+q_i=M s_i,
+\qquad
+r_i=(p_i-c)q_i.
+$$
+
+默认市场参数为
+
+$$
+M=1000,quad c=1,quad v=5,quad \beta=1.25,quad \mu=0.55.
+$$
+
+## Q-learning
+
+每个 Agent 观察上一轮所有卖家的动作、需求和利润分箱。更新目标为
+
+$$
+y_i=r_i+\gamma\max_{a'}Q_i(s',a'),
+\qquad
+\delta_i=y_i-Q_i(s,a_i).
+$$
+
+代码使用 hysteretic learning rate：
+
+$$
+Q_i(s,a_i)\leftarrow Q_i(s,a_i)+
+\begin{cases}
+\alpha_+\delta_i,&\delta_i\ge0,\\
+\alpha_-\delta_i,&\delta_i<0,
+\end{cases}
+$$
+
+其中 $\alpha_+=0.05$、$\alpha_-=0.01$。Gamma sweep 实验使用零初始化 $Q_0(s,a)=0$，而不使用高价先验。
+
+## Gamma sweep 主实验
+
+每种市场分别测试
+
+$$
+\gamma\in\{0.01,0.30,0.60,0.95,0.99\}.
+$$
+
+共运行 15 个实验，每个训练 $1,000,000$ 轮，探索率由 $0.20$ 衰减至 $0.001$。收敛检查比较最后两个各 $50,000$ 轮的窗口，要求：
+
+$$
+|\Delta\bar p|<0.01,
+\qquad
+\operatorname{TV}(\pi_{t-1},\pi_t)<0.03.
+$$
+
+运行完整实验：
+
+```bash
+python3 run_gamma_sweep.py --episodes 1000000 --workers 3
 ```
 
-Both experiments satisfy:
+最后 $50,000$ 轮的结果摘要：
+
+| 市场 | 主要结果 |
+|---|---|
+| 多人两价 | $\gamma\le0.95$ 时几乎全员低价；$\gamma=0.99$ 未通过收敛检查 |
+| 两人多价 | $\gamma\le0.60$ 收敛到低价附近；$0.95/0.99$ 价格更高但未收敛 |
+| 多人多价 | 五组均通过经验收敛检查，稳定在非对称价格分布 |
+
+完整表格、数值和讨论见 [`GAMMA_SWEEP_RESULTS_CN.md`](GAMMA_SWEEP_RESULTS_CN.md) 与 [`results/gamma_sweep/summary.csv`](results/gamma_sweep/summary.csv)。
+
+## 图像
+
+每种市场分开绘图：
 
 ```text
-LH > HH > LL > HL
+figures/gamma_sweep/
+├── many_agents_two_prices/
+├── two_agents_many_prices/
+└── many_agents_many_prices/
 ```
 
-## High-Convergence Market
+每个目录包含：
 
-```text
-gamma = 0.99
-LL = 410
-HL = 200
-LH = 560
-HH = 500
-```
+- `training_curves_by_gamma.png`：价格、利润、需求和同价率的完整训练曲线；
+- `final_metrics_by_gamma.png`：最后价格、利润和同价率对 $\gamma$ 的比较。
 
-## Low-Convergence Market
+## 两人两价初始化对照
 
-```text
-gamma = 0.30
-LL = 410
-HL = 50
-LH = 700
-HH = 430
-```
-
-Profit is:
-
-```text
-r_i = (p_i - c) q_i
-```
-
-Q-learning update:
-
-```text
-y_i = r_i + gamma * max_{a'} Q_i(s_i', a')
-delta_i = y_i - Q_i(s_i, a_i)
-Q_i(s_i, a_i) <- Q_i(s_i, a_i) + alpha_i * delta_i
-```
-
-Run:
+`run_experiment.py` 是一个独立的两人两价对照实验，用来检验原始状态相关 Q 先验在 $\gamma=0.99$ 和 $\gamma=0.01$ 下的表现：
 
 ```bash
 python3 run_experiment.py
 ```
 
-Current results:
+该实验与上述零初始化 Gamma sweep 不应混为一组。详细说明见 [`GAMMA_CONTROL_EXPERIMENT_CN.md`](GAMMA_CONTROL_EXPERIMENT_CN.md)。
 
-```text
-Original initialization, gamma=0.99:
-final price=2.594, final profit=498.49, all-high=0.986, all-low=0.007
-
-Original initialization, gamma=0.01 (all other parameters unchanged):
-final price=2.001, final profit=409.87, all-high=0.000, all-low=0.996
-```
-
-Both cases use the exact original state-dependent Q prior (`1000` on high after
-unanimous play, `1000` on low after mismatched play).  With `gamma=0.01`, that
-prior delays but does not prevent convergence to low prices.  See
-`GAMMA_CONTROL_EXPERIMENT_CN.md` for the controlled comparison.
-
-For the generalized many-seller/many-price Logit-demand experiments, run:
+## 安装
 
 ```bash
-python3 run_generalized_experiment.py
+python3 -m pip install -r requirements.txt
 ```
 
-Parameters, payoff equations, and validated results are documented in `GENERALIZED_EXPERIMENT_CN.md`.
+主要代码：
+
+- `repeated_market_rl.py`：市场、需求、状态、Q 表和训练循环；
+- `run_gamma_sweep.py`：15 组主实验与汇总；
+- `plot_gamma_sweep.py`：Gamma sweep 绘图；
+- `run_experiment.py`：两人两价原始 Q 先验对照。
+
+> 注：多智能体独立 Q-learning 面对的环境并非平稳，因此即使训练很长，也不存在一般性的理论收敛保证。本项目中的“收敛”特指通过上述尾部窗口稳定性检查。

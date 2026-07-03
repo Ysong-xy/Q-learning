@@ -5,7 +5,6 @@ from pathlib import Path
 
 import numpy as np
 
-from plot_results import plot_experiment
 from plot_generalized_results import plot_generalized_results
 from repeated_market_rl import price_vector
 from repeated_market_rl import RepeatedMarketConfig, RepeatedTrainConfig, benchmarks, save_results, train
@@ -66,7 +65,6 @@ def main() -> None:
 
     scenarios = build_scenarios()
     results = {}
-    plot_specs = []
 
     print("Transparent two-seller pricing experiment")
     for scenario in scenarios:
@@ -92,22 +90,6 @@ def main() -> None:
 
         data = train(market_cfg, train_cfg)
         results[scenario.key] = data
-        plot_specs.append(
-            {
-                "key": scenario.key,
-                "label": scenario.label,
-                "gamma": train_cfg.gamma,
-                "nash_price": bench["nash_price"],
-                "collusive_price": bench["collusive_price"],
-                "payoff_low_low": bench["nash_profit"],
-                "payoff_high_high": bench["collusive_profit"],
-                "payoff_low_high": (market_cfg.low_price - market_cfg.cost)
-                * market_cfg.demand_low_when_undercutting,
-                "payoff_high_low": (market_cfg.high_price - market_cfg.cost)
-                * market_cfg.demand_high_when_undercut,
-            }
-        )
-
         final_actions = data["actions"][-5000:]
         final_price = data["prices"][-5000:].mean()
         final_profit = data["rewards"][-5000:].mean()
@@ -119,7 +101,6 @@ def main() -> None:
         )
 
     save_results(results, result_dir)
-    plot_experiment(result_dir, figure_dir, plot_specs)
     plot_generalized_results(results, scenarios, figure_dir / "two_price_dynamics")
 
     print(f"Saved figures to: {figure_dir}")
