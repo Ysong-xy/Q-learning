@@ -31,7 +31,7 @@ $$
 默认市场参数为
 
 $$
-M=1000,quad c=1,quad v=5,quad \beta=1.25,quad \mu=0.55.
+M=1000,quad c=1,quad v=5,quad \beta=1.25,quad \mu=0.80.
 $$
 
 ## Q-learning

@@ -43,7 +43,7 @@ def _run_one(case: MarketCase, gamma: float, episodes: int, root: Path) -> dict[
         market_size=1_000.0,
         consumer_value=5.0,
         price_sensitivity=1.25,
-        differentiation=0.55,
+        differentiation=0.80,
         cost=1.0,
     )
     train_cfg = RepeatedTrainConfig(
@@ -88,9 +88,12 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--episodes", type=int, default=1_000_000)
     parser.add_argument("--workers", type=int, default=3)
+    parser.add_argument("--market", choices=[case.key for case in market_cases()])
     args = parser.parse_args()
     root = Path(__file__).resolve().parent
     cases = market_cases()
+    if args.market:
+        cases = tuple(case for case in cases if case.key == args.market)
     rows: list[dict[str, object]] = []
 
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
@@ -105,7 +108,8 @@ def main() -> None:
             print(f"finished {case.key}, gamma={gamma:.2f}, converged={row['converged']}", flush=True)
 
     rows.sort(key=lambda row: (str(row["market"]), float(row["gamma"])))
-    summary = root / "results" / "gamma_sweep" / "summary.csv"
+    summary_name = "summary.csv" if args.market is None else f"summary_{args.market}.csv"
+    summary = root / "results" / "gamma_sweep" / summary_name
     summary.parent.mkdir(parents=True, exist_ok=True)
     with summary.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]))

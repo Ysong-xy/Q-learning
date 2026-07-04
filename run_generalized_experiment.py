@@ -38,7 +38,7 @@ def market_config(scenario: Scenario) -> RepeatedMarketConfig:
         market_size=1_000.0,
         consumer_value=5.0,
         price_sensitivity=1.25,
-        differentiation=0.55,
+        differentiation=0.80,
         cost=1.0,
     )
 

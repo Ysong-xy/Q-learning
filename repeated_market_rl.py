@@ -21,7 +21,7 @@ class RepeatedMarketConfig:
     market_size: float = 1_000.0
     consumer_value: float = 5.0
     price_sensitivity: float = 1.25
-    differentiation: float = 0.55
+    differentiation: float = 0.80
 
     demand_all_low: float = 410.0
     demand_all_high: float = 312.5
